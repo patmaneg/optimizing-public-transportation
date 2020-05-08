@@ -9,6 +9,11 @@ from confluent_kafka.avro import AvroProducer
 
 logger = logging.getLogger(__name__)
 
+## Globals
+SCHEMA_REGISTRY_URL = "http://localhost:8081"
+BROKER_URL = "PLAINTEXT://localhost:9092"
+ZOOKEEPER_HOST = "localhost:2181"
+
 
 class Producer:
     """Defines and provides common functionality amongst Producers"""
@@ -21,6 +26,7 @@ class Producer:
         topic_name,
         key_schema,
         value_schema=None,
+        ## REVISAR ---------------
         num_partitions=1,
         num_replicas=1,
     ):
@@ -38,9 +44,11 @@ class Producer:
         #
         #
         self.broker_properties = {
-            # TODO
-            # TODO
-            # TODO
+            "broker.id": 0,
+            "log.dirs": "/tmp/kafka-logs",
+            "zookeeper.connect": ZOOKEEPER_HOST,
+            "bootstrap.servers": BROKER_URL,
+            "schema.registry.url": SCHEMA_REGISTRY_URL
         }
 
         # If the topic does not already exist, try to create it
@@ -49,9 +57,11 @@ class Producer:
             Producer.existing_topics.add(self.topic_name)
 
         # TODO: Configure the AvroProducer
-        # self.producer = AvroProducer(
-        # )
-
+        self.producer = AvroProducer({'bootstrap.servers': self.broker_properties["bootstrap.servers"],
+                                      'schema.registry.url': self.broker_properties["schema.registry.url"]},
+                                     default_key_schema=self.key_schema,
+                                     default_value_schema=self.value_schema)
+        
     def create_topic(self):
         """Creates the producer topic if it does not already exist"""
         #
@@ -60,7 +70,26 @@ class Producer:
         # the Kafka Broker.
         #
         #
-        logger.info("topic creation kafka integration incomplete - skipping")
+        client = AdminClient({"bootstrap.servers": self.broker_properties["bootstrap.servers"]})        
+        topic_metadata = client.list_topics(timeout=5)
+        
+        if topic_metadata.topics.get(self.topic_name) is None:
+            newTopic = NewTopic(
+                topic=self.topic_name,
+                num_partitions=self.num_partitions,
+                replication_factor=self.num_replicas,
+                config={
+                    "cleanup.policy": "compaction",
+                    "compression.type": "lz4", 
+                    "delete.retention.ms": 100,
+                    "file.delete.delay.ms": 100
+                }
+            )
+            client.create_topics([newTopic])
+
+            
+        ## topic created
+        logger.info("producer create")
 
     def time_millis(self):
         return int(round(time.time() * 1000))
@@ -72,6 +101,8 @@ class Producer:
         # TODO: Write cleanup code for the Producer here
         #
         #
+        if self.producer is not None:
+            self.producer.flush(timeout=5)
         logger.info("producer close incomplete - skipping")
 
     def time_millis(self):
