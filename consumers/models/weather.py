@@ -24,5 +24,5 @@ class Weather:
         #
         value = message.value()
         self.temperature = value["temperature"]
-        self.status = value["status"]
+        self.status = value["stastus"]
         
